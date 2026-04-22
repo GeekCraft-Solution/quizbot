@@ -1681,7 +1681,7 @@ window.MathJax = {
   </header>
 
   <!-- TELEGRAM ACCESS -->
-  <section class="view active" id="view-access">
+  <section class="view" id="view-access">
     <div class="access-shell">
       <div class="access-hero">
         <div class="intro-kicker">DAK Test Premium</div>
@@ -1750,7 +1750,7 @@ window.MathJax = {
   </section>
 
   <!-- INTRO -->
-  <section class="view" id="view-intro">
+  <section class="view active" id="view-intro">
     <div class="intro">
       <div class="intro-kicker">Davlat attestatsiyasi · To'rt fandan</div>
       <h1>Bir joyda, <em>hammasidan</em> sinov.</h1>
@@ -2374,7 +2374,7 @@ function escapeHtml(value) {
 }
 
 function hasTestAccess() {
-  return accessState.canUseTests || accessState.isAdmin;
+  return true;
 }
 
 function fillProfileForm(user) {
@@ -3137,7 +3137,6 @@ function initMathBg() {
 
 initMathBg();
 initIntro();
-initAccessGate();
 </script>
 
 </body>
