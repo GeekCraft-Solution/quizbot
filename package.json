@@ -1,0 +1,13 @@
+{
+  "name": "dak-test-telegram-mini-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DAK Test Telegram Mini App with bot registration and admin approvals",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
