@@ -656,6 +656,7 @@ window.MathJax = {
     display: flex;
     align-items: center;
     gap: 8px;
+    text-decoration: none;
   }
   .nav-btn:hover:not(:disabled) {
     border-color: var(--ink);
@@ -1185,6 +1186,56 @@ window.MathJax = {
     margin-top: 18px;
   }
 
+  .sales-copy {
+    display: grid;
+    gap: 12px;
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+  }
+
+  .sales-copy strong {
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .sales-copy p {
+    color: var(--ink-dim);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .sales-benefits {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+  }
+
+  .sales-benefit {
+    background: var(--bg-card);
+    padding: 13px 12px;
+  }
+
+  .sales-benefit b {
+    display: block;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+
+  .sales-benefit span {
+    color: var(--ink-dim);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
   .start-btn.compact {
     width: auto;
     min-width: 220px;
@@ -1339,6 +1390,7 @@ window.MathJax = {
     .admin-stat:nth-child(2) { border-right: 0; }
     .admin-stat:nth-child(1),
     .admin-stat:nth-child(2) { border-bottom: 1px solid var(--line); }
+    .sales-benefits { grid-template-columns: 1fr; }
     .start-btn.compact,
     .access-actions .nav-btn,
     .admin-actions .nav-btn {
@@ -1632,10 +1684,10 @@ window.MathJax = {
   <section class="view active" id="view-access">
     <div class="access-shell">
       <div class="access-hero">
-        <div class="intro-kicker">Telegram Mini App</div>
-        <h1>Ruxsat bilan <em>testga kirish</em>.</h1>
+        <div class="intro-kicker">DAK Test Premium</div>
+        <h1>Test bazasiga <em>premium kirish</em>.</h1>
         <p class="access-lead">
-          Foydalanuvchi bot orqali ro'yxatdan o'tadi, test ishlash uchun so'rov yuboradi va admin tasdiqlagandan keyin savollar ochiladi.
+          Matematik analiz, geometriya, dasturlash va metodika bo'yicha yopiq test bazasi. Kirish bot orqali ruxsat berilgandan keyin ochiladi.
         </p>
       </div>
 
@@ -1650,6 +1702,16 @@ window.MathJax = {
 
         <div class="identity-strip" id="telegramIdentity">
           <span><strong>Telegram:</strong> aniqlanmoqda</span>
+        </div>
+
+        <div class="sales-copy" id="salesCopy">
+          <strong>Obuna sotib oling va testlarni Telegram Mini App ichida ishlang.</strong>
+          <p>Botda ro'yxatdan o'ting, administrator bilan bog'lanib kirish huquqini sotib oling. Ruxsat berilgandan keyin shu sahifadan testlar avtomatik ochiladi.</p>
+          <div class="sales-benefits">
+            <div class="sales-benefit"><b>586 savol</b><span>To'rt fan bo'yicha tayyorgarlik savollari.</span></div>
+            <div class="sales-benefit"><b>Mini App</b><span>Telefon va kompyuterdan Telegram orqali kirish.</span></div>
+            <div class="sales-benefit"><b>Admin ruxsati</b><span>To'lovdan keyin kirish huquqi tez faollashtiriladi.</span></div>
+          </div>
         </div>
 
         <div class="form-note" id="accessFormNote">
@@ -1677,6 +1739,8 @@ window.MathJax = {
             </div>
             <span class="arrow">→</span>
           </button>
+          <a class="nav-btn primary" id="botLinkBtn" href="https://t.me/test_cspu_bot" target="_blank" rel="noopener">Botga o'tish</a>
+          <a class="nav-btn" id="adminContactBtn" href="https://t.me/computer_17" target="_blank" rel="noopener">Sotib olish uchun administrator</a>
           <button class="nav-btn primary" id="openTestsBtn" type="button" style="display:none">Testlarga kirish</button>
           <button class="nav-btn" id="openAdminBtn" type="button" style="display:none">Admin panel</button>
           <button class="nav-btn" id="refreshAccessBtn" type="button">Holatni yangilash</button>
@@ -2063,7 +2127,9 @@ const MINI_APP_CONFIG = {
   // Productionda admin Telegram ID larini serverdagi ADMIN_IDS orqali bering.
   // Frontend ro'yxat faqat local demo uchun yordamchi qatlam.
   adminTelegramIds: [],
-  apiBaseUrl: ''
+  apiBaseUrl: '',
+  botUrl: 'https://t.me/test_cspu_bot',
+  adminContactUrl: 'https://t.me/computer_17'
 };
 
 const ACCESS_STORAGE_KEY = 'dak_test_access_v1';
@@ -2079,10 +2145,10 @@ const accessState = {
 };
 
 const STATUS_COPY = {
-  new: { title: "Bot orqali ro'yxatdan o'ting", text: "Ro'yxatdan o'tish va ruxsat so'rash botda bajariladi. Botga qaytib telefon raqamingizni yuboring." },
-  pending: { title: "So'rov kutilyapti", text: "Admin tasdiqlashi kutilmoqda. Holatni yangilash tugmasi orqali tekshirishingiz mumkin." },
+  new: { title: "Kirish huquqini sotib oling", text: "Bot orqali ro'yxatdan o'ting yoki sotib olish uchun administrator bilan Telegramda bog'laning." },
+  pending: { title: "So'rov kutilyapti", text: "Admin tasdiqlashi kutilmoqda. Sotib olish bo'yicha savollar uchun administratorga yozishingiz mumkin." },
   approved: { title: "Ruxsat berildi", text: "Admin test dasturidan foydalanishga ruxsat berdi. Endi savollarni ishlashingiz mumkin." },
-  blocked: { title: "Ruxsat bekor qilingan", text: "Admin test dasturidan foydalanishni cheklagan. Qayta ruxsat uchun administrator bilan bog'laning." },
+  blocked: { title: "Kirish cheklangan", text: "Qayta faollashtirish yoki sotib olish bo'yicha administrator bilan bog'laning." },
   admin: { title: "Admin rejimi", text: "Foydalanuvchilar so'rovlarini ko'rish, tasdiqlash va bekor qilish mumkin." },
   error: { title: "Aloqa xatosi", text: "Server bilan aloqa bo'lmadi. Internet yoki backend sozlamasini tekshiring." }
 };
@@ -2329,7 +2395,7 @@ function renderTelegramIdentity() {
     identity.innerHTML = `<span><strong>Telegram:</strong> ${escapeHtml(getTelegramDisplayName(tgUser) || 'Profil')} ${escapeHtml(username)}</span><span><strong>ID:</strong> ${escapeHtml(tgUser.id)}</span>`;
     return;
   }
-  identity.innerHTML = `<span><strong>Local demo:</strong> Telegram ichida ochilmagani uchun vaqtinchalik profil ishlatilmoqda.</span><span><strong>ID:</strong> ${escapeHtml(user ? user.id : getClientId())}</span>`;
+  identity.innerHTML = `<span><strong>Kirish:</strong> Bot orqali ro'yxatdan o'ting va ruxsat oling.</span><span><strong>Sotib olish:</strong> @computer_17 orqali administrator bilan bog'laning.</span>`;
 }
 
 function renderAccessGate(statusOverride) {
@@ -2349,22 +2415,34 @@ function renderAccessGate(statusOverride) {
   const requestBtn = $('#requestAccessBtn');
   const openTestsBtn = $('#openTestsBtn');
   const openAdminBtn = $('#openAdminBtn');
+  const botLinkBtn = $('#botLinkBtn');
+  const adminContactBtn = $('#adminContactBtn');
+  const salesCopy = $('#salesCopy');
   const note = $('#accessFormNote');
   const isApproved = user && user.status === 'approved';
 
   if (form) form.style.display = 'none';
   if (requestBtn) requestBtn.style.display = 'none';
+  if (botLinkBtn) {
+    botLinkBtn.href = MINI_APP_CONFIG.botUrl;
+    botLinkBtn.style.display = isApproved || isAdmin ? 'none' : 'inline-flex';
+  }
+  if (adminContactBtn) {
+    adminContactBtn.href = MINI_APP_CONFIG.adminContactUrl;
+    adminContactBtn.style.display = isApproved || isAdmin ? 'none' : 'inline-flex';
+  }
+  if (salesCopy) salesCopy.style.display = isApproved || isAdmin ? 'none' : 'grid';
   openTestsBtn.style.display = isApproved || isAdmin ? 'inline-flex' : 'none';
   openAdminBtn.style.display = isAdmin ? 'inline-flex' : 'none';
   if (note) {
     if (isApproved || isAdmin) {
       note.textContent = "Ruxsat tasdiqlangan. Testlarni ishlashingiz mumkin.";
     } else if (user && user.status === 'pending') {
-      note.textContent = "So'rovingiz admin tasdig'ini kutmoqda. Botdagi xabarni kuzatib boring yoki holatni yangilang.";
+      note.textContent = "So'rovingiz admin tasdig'ini kutmoqda. To'lov yoki kirish masalasi bo'yicha @computer_17 ga yozing.";
     } else if (user && user.status === 'blocked') {
-      note.textContent = "Foydalanish cheklangan. Administrator bilan bot orqali bog'laning.";
+      note.textContent = "Foydalanish cheklangan. Qayta faollashtirish uchun administrator bilan Telegram orqali bog'laning.";
     } else {
-      note.textContent = "Ro'yxatdan o'tish va ruxsat so'rash bot orqali bajariladi. Botga qaytib telefon raqamingizni yuboring va ruxsat so'rang.";
+      note.textContent = "Bot orqali ro'yxatdan o'ting yoki sotib olish uchun administratorga yozing.";
     }
   }
 }
