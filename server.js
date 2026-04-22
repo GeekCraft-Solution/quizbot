@@ -3,6 +3,7 @@ const fs = require('fs/promises');
 const fsSync = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
 loadEnv();
 
@@ -504,12 +505,15 @@ async function handleHttp(req, res) {
   sendText(res, 404, 'Not found');
 }
 
+const proxyAgent = process.env.PROXY_URL ? new HttpsProxyAgent(process.env.PROXY_URL) : undefined;
+
 async function botApi(method, payload) {
   if (!BOT_TOKEN) throw new Error('BOT_TOKEN sozlanmagan');
   const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    ...(proxyAgent ? { agent: proxyAgent } : {})
   });
   const data = await response.json();
   if (!data.ok) throw new Error(data.description || method + ' failed');
