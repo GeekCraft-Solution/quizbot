@@ -1652,7 +1652,10 @@ window.MathJax = {
           <span><strong>Telegram:</strong> aniqlanmoqda</span>
         </div>
 
-        <form class="access-form" id="registrationForm">
+        <div class="form-note" id="accessFormNote">
+          Ro'yxatdan o'tish va ruxsat so'rash bot orqali bajariladi. Botda telefon raqamingizni yuboring va admin tasdig'ini kuting.
+        </div>
+        <form class="access-form" id="registrationForm" style="display:none">
           <div class="field">
             <label for="fullNameInput">Ism familiya</label>
             <input id="fullNameInput" name="fullName" autocomplete="name" placeholder="Masalan: Ali Valiyev" required>
@@ -1661,13 +1664,13 @@ window.MathJax = {
             <label for="phoneInput">Telegram telefon raqami</label>
             <input id="phoneInput" name="phone" autocomplete="tel" inputmode="tel" placeholder="+998 90 123 45 67" required>
           </div>
-          <div class="form-note" id="accessFormNote">
+          <div class="form-note" id="legacyAccessFormNote">
             Botda kontakt yuborilgan bo'lsa, server bu raqamni avtomatik saqlaydi. Bu maydon web orqali ochilganda zaxira ro'yxatdan o'tish uchun.
           </div>
         </form>
 
         <div class="access-actions">
-          <button class="start-btn compact" id="requestAccessBtn" type="button">
+          <button class="start-btn compact" id="requestAccessBtn" type="button" style="display:none">
             <div>
               <span>Ruxsat so'rash</span>
               <div class="start-subtext">Admin tasdig'iga yuboriladi</div>
@@ -2076,8 +2079,8 @@ const accessState = {
 };
 
 const STATUS_COPY = {
-  new: { title: "Ro'yxatdan o'tish", text: "Ism familiya va Telegram telefon raqamini kiriting, keyin admin tasdig'iga so'rov yuboring." },
-  pending: { title: "So'rov yuborildi", text: "Admin tasdiqlashi kutilmoqda. Holatni yangilash tugmasi orqali tekshirishingiz mumkin." },
+  new: { title: "Bot orqali ro'yxatdan o'ting", text: "Ro'yxatdan o'tish va ruxsat so'rash botda bajariladi. Botga qaytib telefon raqamingizni yuboring." },
+  pending: { title: "So'rov kutilyapti", text: "Admin tasdiqlashi kutilmoqda. Holatni yangilash tugmasi orqali tekshirishingiz mumkin." },
   approved: { title: "Ruxsat berildi", text: "Admin test dasturidan foydalanishga ruxsat berdi. Endi savollarni ishlashingiz mumkin." },
   blocked: { title: "Ruxsat bekor qilingan", text: "Admin test dasturidan foydalanishni cheklagan. Qayta ruxsat uchun administrator bilan bog'laning." },
   admin: { title: "Admin rejimi", text: "Foydalanuvchilar so'rovlarini ko'rish, tasdiqlash va bekor qilish mumkin." },
@@ -2347,19 +2350,23 @@ function renderAccessGate(statusOverride) {
   const openTestsBtn = $('#openTestsBtn');
   const openAdminBtn = $('#openAdminBtn');
   const note = $('#accessFormNote');
-  const canRequest = !isAdmin && (!user || user.status === 'new');
-  const isBlocked = user && user.status === 'blocked';
   const isApproved = user && user.status === 'approved';
 
-  form.style.display = isApproved || isAdmin ? 'none' : 'grid';
-  requestBtn.style.display = isApproved || isAdmin ? 'none' : 'flex';
-  requestBtn.disabled = !canRequest || isBlocked;
-  requestBtn.querySelector('span').textContent = user && user.status === 'pending' ? "So'rov yuborilgan" : "Ruxsat so'rash";
+  if (form) form.style.display = 'none';
+  if (requestBtn) requestBtn.style.display = 'none';
   openTestsBtn.style.display = isApproved || isAdmin ? 'inline-flex' : 'none';
   openAdminBtn.style.display = isAdmin ? 'inline-flex' : 'none';
-  note.textContent = shouldUseBackend()
-    ? "Botdan yuborilgan kontakt backendda saqlanadi. Bu maydonlar profilni yangilash uchun ham ishlaydi."
-    : "Local demo rejimi: haqiqiy admin tasdig'i uchun server.js ni ishga tushiring va Telegram botni sozlang.";
+  if (note) {
+    if (isApproved || isAdmin) {
+      note.textContent = "Ruxsat tasdiqlangan. Testlarni ishlashingiz mumkin.";
+    } else if (user && user.status === 'pending') {
+      note.textContent = "So'rovingiz admin tasdig'ini kutmoqda. Botdagi xabarni kuzatib boring yoki holatni yangilang.";
+    } else if (user && user.status === 'blocked') {
+      note.textContent = "Foydalanish cheklangan. Administrator bilan bot orqali bog'laning.";
+    } else {
+      note.textContent = "Ro'yxatdan o'tish va ruxsat so'rash bot orqali bajariladi. Botga qaytib telefon raqamingizni yuboring va ruxsat so'rang.";
+    }
+  }
 }
 
 async function refreshAccessState(options = {}) {
