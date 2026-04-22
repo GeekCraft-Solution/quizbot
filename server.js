@@ -3,6 +3,7 @@ const fs = require('fs/promises');
 const fsSync = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { ProxyAgent, setGlobalDispatcher } = require('undici');
 
 loadEnv();
 
@@ -502,6 +503,10 @@ async function handleHttp(req, res) {
     return;
   }
   sendText(res, 404, 'Not found');
+}
+
+if (process.env.PROXY_URL) {
+  setGlobalDispatcher(new ProxyAgent(process.env.PROXY_URL));
 }
 
 async function botApi(method, payload) {
