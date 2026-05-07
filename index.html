@@ -2228,6 +2228,9 @@ function isDemoAdmin() {
 }
 
 function requestedInitialView() {
+  const path = location.pathname.replace(/\/+$/, '');
+  if (path === '/admin') return 'admin';
+  if (path === '/app') return 'tests';
   return new URLSearchParams(location.search).get('view') || '';
 }
 
