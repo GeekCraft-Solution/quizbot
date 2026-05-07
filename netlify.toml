@@ -3,7 +3,7 @@
 
 [[redirects]]
   from = "/admin"
-  to = "/index.html"
+  to = "/admin.html"
   status = 200
 
 [[redirects]]

@@ -766,7 +766,11 @@ async function handleApi(req, res, url) {
 }
 
 async function serveIndex(res) {
-  const html = await fs.readFile(path.join(__dirname, 'index.html'), 'utf8');
+  await serveHtml(res, 'index.html');
+}
+
+async function serveHtml(res, filename) {
+  const html = await fs.readFile(path.join(__dirname, filename), 'utf8');
   sendText(res, 200, html, 'text/html; charset=utf-8');
 }
 
@@ -776,8 +780,12 @@ async function handleHttp(req, res) {
     await handleApi(req, res, url);
     return;
   }
-  if (req.method === 'GET' && ['/', '/index.html', '/app', '/admin'].includes(url.pathname)) {
+  if (req.method === 'GET' && ['/', '/index.html', '/app'].includes(url.pathname)) {
     await serveIndex(res);
+    return;
+  }
+  if (req.method === 'GET' && ['/admin', '/admin.html'].includes(url.pathname)) {
+    await serveHtml(res, 'admin.html');
     return;
   }
   sendText(res, 404, 'Not found');
@@ -875,7 +883,7 @@ function adminMainKeyboard() {
       [{ text: ADMIN_BUTTONS.users }],
       [{ text: ADMIN_BUTTONS.planned }],
       [{ text: ADMIN_BUTTONS.app, web_app: { url: webAppPage('/app') } }],
-      [{ text: ADMIN_BUTTONS.adminPanel, web_app: { url: webAppPage('/admin') } }]
+      [{ text: ADMIN_BUTTONS.adminPanel, web_app: { url: webAppPage('/admin.html') } }]
     ],
     resize_keyboard: true
   };
