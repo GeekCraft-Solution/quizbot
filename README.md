@@ -59,13 +59,19 @@ GitHub repository settings ichida quyidagi Actions secrets kerak:
 
 - `SERVER_HOST` - server IP yoki domeni.
 - `SERVER_USER` - SSH user.
+- `SERVER_PASSWORD` - SSH parol. Key ishlatsangiz bo'sh qoldirish mumkin.
 - `SERVER_SSH_KEY` - serverga kira oladigan private SSH key.
 - `SERVER_PORT` - SSH port, odatda `22`.
 - `DEPLOY_PATH` - serverdagi loyiha papkasi, masalan `/var/www/quizbot`.
+- `BOT_TOKEN` - Telegram bot token.
+- `WEBAPP_URL` - Mini App production URL.
+- `ADMIN_IDS` - admin Telegram ID raqamlari, vergul bilan.
+- `HISTORY_CHANNEL_ID` - tarix yuboriladigan kanal ID.
+- `APP_PORT` - Node app port, odatda `3000`.
 
 Serverda Node.js 18+ va `git` o'rnatilgan bo'lishi kerak. Deploy workflow `pm2` bo'lmasa o'zi o'rnatadi va `ecosystem.config.cjs` orqali appni qayta ishga tushiradi.
 
-Serverdagi `.env` fayli GitHubga chiqmaydi. Birinchi deploydan keyin `DEPLOY_PATH/.env` ichiga production qiymatlarni yozing:
+Serverdagi `.env` fayli GitHubga chiqmaydi. Deploy vaqtida GitHub Secrets qiymatlaridan avtomatik yaratiladi:
 
 ```env
 BOT_TOKEN=...
