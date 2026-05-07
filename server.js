@@ -776,7 +776,7 @@ async function handleHttp(req, res) {
     await handleApi(req, res, url);
     return;
   }
-  if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
+  if (req.method === 'GET' && ['/', '/index.html', '/app', '/admin'].includes(url.pathname)) {
     await serveIndex(res);
     return;
   }
@@ -853,19 +853,20 @@ function requestInlineKeyboard() {
   };
 }
 
-function miniAppKeyboard() {
-  return {
-    keyboard: [[{ text: 'Mini appni ochish', web_app: { url: WEBAPP_URL } }]],
-    resize_keyboard: true
-  };
-}
-
-function webAppUrlWith(params) {
+function webAppPage(pathname, params = {}) {
   const url = new URL(WEBAPP_URL);
+  url.pathname = pathname;
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
   return url.toString();
+}
+
+function miniAppKeyboard() {
+  return {
+    keyboard: [[{ text: 'Mini appni ochish', web_app: { url: webAppPage('/app') } }]],
+    resize_keyboard: true
+  };
 }
 
 function adminMainKeyboard() {
@@ -873,8 +874,8 @@ function adminMainKeyboard() {
     keyboard: [
       [{ text: ADMIN_BUTTONS.users }],
       [{ text: ADMIN_BUTTONS.planned }],
-      [{ text: ADMIN_BUTTONS.app, web_app: { url: webAppUrlWith({ view: 'tests' }) } }],
-      [{ text: ADMIN_BUTTONS.adminPanel, web_app: { url: webAppUrlWith({ view: 'admin' }) } }]
+      [{ text: ADMIN_BUTTONS.app, web_app: { url: webAppPage('/app') } }],
+      [{ text: ADMIN_BUTTONS.adminPanel, web_app: { url: webAppPage('/admin') } }]
     ],
     resize_keyboard: true
   };
