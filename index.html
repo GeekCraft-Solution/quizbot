@@ -1015,21 +1015,6 @@ window.MathJax = {
     }
   }
 
-  /* DevTools ochilganda ko'rinmaydigan xabar uchun */
-  #devtools-warning {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: #0e0d0c;
-    z-index: 99999;
-    color: #d94a2b;
-    font-family: 'Fraunces', serif;
-    font-size: 24px;
-    text-align: center;
-    padding-top: 40vh;
-  }
-  #devtools-warning.active { display: block; }
-
   /* ===== TELEGRAM MINI APP ACCESS ===== */
   body.telegram-mini-app {
     background: var(--tg-theme-bg-color, var(--bg));
@@ -1366,6 +1351,66 @@ window.MathJax = {
   .action-btn.block { border-color: var(--error); color: var(--error); }
   .action-btn:hover { background: var(--bg-soft); }
 
+  .device-panel {
+    border-top: 1px solid var(--line);
+    padding-top: 10px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .device-row {
+    color: var(--ink-dim);
+    font-size: 12px;
+    line-height: 1.45;
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 9px 10px;
+    background: rgba(0,0,0,0.14);
+  }
+
+  .question-form {
+    border: 1px solid var(--line);
+    background: rgba(27, 24, 20, 0.65);
+    padding: 16px;
+    display: grid;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .question-form label {
+    display: grid;
+    gap: 6px;
+    color: var(--ink-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .question-form input,
+  .question-form textarea,
+  .question-form select,
+  .question-search {
+    width: 100%;
+    background: rgba(14, 13, 12, 0.82);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    padding: 10px 12px;
+    font: 14px/1.35 var(--sans);
+    border-radius: 0;
+  }
+
+  .question-answer-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .question-text-preview {
+    color: var(--ink);
+    line-height: 1.45;
+    margin: 6px 0;
+  }
+
   .empty-state {
     border: 1px dashed var(--line);
     color: var(--ink-faint);
@@ -1399,6 +1444,7 @@ window.MathJax = {
     }
     .user-card-top { display: grid; }
     .status-pill { width: max-content; }
+    .question-answer-grid { grid-template-columns: 1fr; }
   }
 
 </style>
@@ -1522,41 +1568,7 @@ window.MathJax = {
     }
   }, true);
 
-  // 8. DevTools detection (via window size difference)
-  let devToolsOpen = false;
-  const threshold = 160;
-
-  function checkDevTools() {
-    const widthDiff = window.outerWidth - window.innerWidth;
-    const heightDiff = window.outerHeight - window.innerHeight;
-    const isOpen = widthDiff > threshold || heightDiff > threshold;
-
-    if (isOpen && !devToolsOpen) {
-      devToolsOpen = true;
-      showSecurityOverlay("Developer tools aniqlandi! Iltimos uni yoping va sahifani qaytadan yuklang.");
-    } else if (!isOpen && devToolsOpen) {
-      devToolsOpen = false;
-      hideSecurityOverlay();
-    }
-  }
-
-  setInterval(checkDevTools, 500);
-
-  // 9. DevTools detection via console.log timing (debugger trap)
-  function detectDebugger() {
-    const start = performance.now();
-    // eslint-disable-next-line no-debugger
-    debugger;
-    const end = performance.now();
-    if (end - start > 100) {
-      showSecurityOverlay("Debugger aniqlandi! Iltimos uni yoping.");
-    }
-  }
-
-  // Run debugger check periodically (only works if devtools open)
-  setInterval(detectDebugger, 2000);
-
-  // 10. Hide content when window loses focus (prevents screenshot from another app while this is backgrounded)
+  // 8. Hide content when window loses focus (prevents screenshot from another app while this is backgrounded)
   let focusWarningShown = false;
   window.addEventListener('blur', function() {
     document.body.style.filter = 'blur(20px)';
@@ -1663,7 +1675,6 @@ window.MathJax = {
   </div>
 </div>
 
-<div id="devtools-warning">Developer Tools ochiq. Iltimos, uni yoping.</div>
 <div class="math-bg" id="mathBg"></div>
 
 <div class="container">
@@ -1877,6 +1888,10 @@ window.MathJax = {
       </div>
 
       <div class="admin-toolbar">
+        <div class="review-filter" id="adminTabs">
+          <button class="filter-btn active" data-admin-tab="users">Foydalanuvchilar</button>
+          <button class="filter-btn" data-admin-tab="questions">Savollar</button>
+        </div>
         <div class="review-filter" id="adminFilters">
           <button class="filter-btn active" data-filter="all">Barchasi</button>
           <button class="filter-btn" data-filter="pending">Kutilmoqda</button>
@@ -1887,6 +1902,42 @@ window.MathJax = {
 
       <div class="user-list" id="adminUserList">
         <div class="empty-state">Foydalanuvchilar yuklanmoqda.</div>
+      </div>
+
+      <div class="admin-question-panel" id="adminQuestionPanel" style="display:none">
+        <form class="question-form" id="questionForm">
+          <input type="hidden" id="questionIdInput">
+          <label>
+            Fan
+            <select id="questionSubjectInput">
+              <option value="matematik_analiz">Matematik analiz</option>
+              <option value="geometriya">Geometriya</option>
+              <option value="dasturlash">Dasturlash</option>
+              <option value="metodika">Metodika</option>
+            </select>
+          </label>
+          <label>
+            Savol matni
+            <textarea id="questionTextInput" rows="4" placeholder="Savolni kiriting"></textarea>
+          </label>
+          <div class="question-answer-grid">
+            <label>To'g'ri javob<input id="answer0Input" type="text"></label>
+            <label>Variant B<input id="answer1Input" type="text"></label>
+            <label>Variant C<input id="answer2Input" type="text"></label>
+            <label>Variant D<input id="answer3Input" type="text"></label>
+          </div>
+          <div class="user-actions">
+            <button class="action-btn approve" id="saveQuestionBtn" type="submit">Saqlash</button>
+            <button class="action-btn" id="resetQuestionBtn" type="button">Tozalash</button>
+          </div>
+        </form>
+        <div class="admin-toolbar">
+          <input class="question-search" id="questionSearchInput" type="search" placeholder="Savollarni qidirish">
+          <div class="meta-pill" id="adminQuestionCount">0 savol</div>
+        </div>
+        <div class="user-list" id="adminQuestionList">
+          <div class="empty-state">Savollar yuklanmoqda.</div>
+        </div>
       </div>
     </div>
   </section>
@@ -2029,32 +2080,12 @@ window.MathJax = {
     }
   });
 
-  // 6. DevTools aniqlanishi
-  var devtoolsOpen = false;
-  var threshold = 160;
-  setInterval(function() {
-    if (window.outerWidth - window.innerWidth > threshold ||
-        window.outerHeight - window.innerHeight > threshold) {
-      if (!devtoolsOpen) {
-        devtoolsOpen = true;
-        var warning = document.getElementById('devtools-warning');
-        if (warning) warning.classList.add('active');
-      }
-    } else {
-      if (devtoolsOpen) {
-        devtoolsOpen = false;
-        var warning = document.getElementById('devtools-warning');
-        if (warning) warning.classList.remove('active');
-      }
-    }
-  }, 1000);
-
-  // 7. Console'ni tozalab turish (debugger ko'rinmasin)
+  // 6. Console'ni tozalab turish (debugger ko'rinmasin)
   setInterval(function() {
     try { console.clear(); } catch(e) {}
   }, 3000);
 
-  // 8. Sahifadan chiqish ogohlantirishi (imtihon rejimida)
+  // 7. Sahifadan chiqish ogohlantirishi (imtihon rejimida)
   window.addEventListener('beforeunload', function(e) {
     if (document.getElementById('view-quiz') && document.getElementById('view-quiz').classList.contains('active')) {
       e.preventDefault();
@@ -2140,7 +2171,10 @@ const accessState = {
   isAdmin: false,
   canUseTests: false,
   adminUsers: [],
+  adminQuestions: [],
   adminFilter: 'all',
+  adminTab: 'users',
+  questionQuery: '',
   error: ''
 };
 
@@ -2193,6 +2227,10 @@ function isDemoAdmin() {
   return isLocalOrigin() && new URLSearchParams(location.search).get('admin') === '1';
 }
 
+function requestedInitialView() {
+  return new URLSearchParams(location.search).get('view') || '';
+}
+
 function shouldUseBackend() {
   return location.protocol !== 'file:' && !!(tgApp && tgApp.initData);
 }
@@ -2212,6 +2250,21 @@ async function apiFetch(path, options = {}) {
   const data = text ? JSON.parse(text) : {};
   if (!response.ok) throw new Error(data.error || response.statusText || 'API error');
   return data;
+}
+
+async function hydrateQuestions() {
+  if (!shouldUseBackend()) return;
+  try {
+    const data = await apiFetch('/api/questions');
+    if (Array.isArray(data.questions) && data.questions.length) {
+      QUESTIONS_RAW.length = 0;
+      data.questions.forEach(q => QUESTIONS_RAW.push(q));
+      $('#headerStatus').textContent = QUESTIONS_RAW.length + ' savol';
+      updateStartButton();
+    }
+  } catch (err) {
+    console.warn('Savollar API orqali yuklanmadi:', err.message);
+  }
 }
 
 function readAccessDb() {
@@ -2311,6 +2364,29 @@ function localSetUserStatus(userId, status) {
   return Promise.resolve({ user, backend: false });
 }
 
+function localListQuestions() {
+  return Promise.resolve({ questions: QUESTIONS_RAW.map((q, index) => Object.assign({ id: q.id || 'local_' + index }, q)), backend: false });
+}
+
+function localSaveQuestion(question) {
+  const item = {
+    id: question.id || 'local_' + Date.now().toString(36),
+    subject: question.subject,
+    q: question.q,
+    a: question.a
+  };
+  const idx = QUESTIONS_RAW.findIndex(q => q.id === item.id);
+  if (idx >= 0) QUESTIONS_RAW[idx] = item;
+  else QUESTIONS_RAW.push(item);
+  return Promise.resolve({ question: item, backend: false });
+}
+
+function localDeleteQuestion(questionId) {
+  const idx = QUESTIONS_RAW.findIndex(q => (q.id || '') === questionId);
+  if (idx >= 0) QUESTIONS_RAW.splice(idx, 1);
+  return Promise.resolve({ backend: false });
+}
+
 const AccessService = {
   async getMe() {
     if (shouldUseBackend()) return apiFetch('/api/me');
@@ -2336,6 +2412,51 @@ const AccessService = {
       });
     }
     return localSetUserStatus(userId, status);
+  },
+  async updateUser(userId, patch) {
+    if (shouldUseBackend()) {
+      return apiFetch('/api/admin/users/' + encodeURIComponent(userId), {
+        method: 'PUT',
+        body: JSON.stringify(patch)
+      });
+    }
+    const db = readAccessDb();
+    const user = db.users.find(item => item.id === userId);
+    if (!user) throw new Error('Foydalanuvchi topilmadi');
+    Object.assign(user, patch, { updatedAt: new Date().toISOString() });
+    writeAccessDb(db);
+    return { user, backend: false };
+  },
+  async deleteUser(userId) {
+    if (shouldUseBackend()) {
+      return apiFetch('/api/admin/users/' + encodeURIComponent(userId), { method: 'DELETE' });
+    }
+    const db = readAccessDb();
+    db.users = db.users.filter(item => item.id !== userId);
+    writeAccessDb(db);
+    return { backend: false };
+  },
+  async listQuestions() {
+    if (shouldUseBackend()) return apiFetch('/api/admin/questions');
+    return localListQuestions();
+  },
+  async saveQuestion(question) {
+    if (shouldUseBackend()) {
+      const method = question.id ? 'PUT' : 'POST';
+      const path = question.id ? '/api/admin/questions/' + encodeURIComponent(question.id) : '/api/admin/questions';
+      return apiFetch(path, { method, body: JSON.stringify(question) });
+    }
+    return localSaveQuestion(question);
+  },
+  async deleteQuestion(questionId) {
+    if (shouldUseBackend()) {
+      return apiFetch('/api/admin/questions/' + encodeURIComponent(questionId), { method: 'DELETE' });
+    }
+    return localDeleteQuestion(questionId);
+  },
+  async logDevice(device) {
+    if (!shouldUseBackend()) return Promise.resolve({ backend: false });
+    return apiFetch('/api/device-log', { method: 'POST', body: JSON.stringify({ device }) });
   }
 };
 
@@ -2373,8 +2494,56 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
+async function sha256Text(text) {
+  if (!crypto || !crypto.subtle) return btoa(text).slice(0, 48);
+  const data = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function collectDeviceInfo() {
+  const nav = navigator || {};
+  const screenValue = window.screen ? `${screen.width}x${screen.height}` : '';
+  const viewport = `${window.innerWidth}x${window.innerHeight}`;
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  const rawFingerprint = [
+    nav.userAgent || '',
+    nav.platform || '',
+    nav.language || '',
+    timezone,
+    screenValue,
+    nav.hardwareConcurrency || '',
+    nav.deviceMemory || '',
+    nav.maxTouchPoints || ''
+  ].join('|');
+  return {
+    fingerprint: await sha256Text(rawFingerprint),
+    platform: nav.platform || '',
+    userAgent: nav.userAgent || '',
+    language: nav.language || '',
+    timezone,
+    screen: screenValue,
+    viewport,
+    colorDepth: window.screen ? String(screen.colorDepth || '') : '',
+    deviceMemory: nav.deviceMemory ? String(nav.deviceMemory) : '',
+    hardwareConcurrency: nav.hardwareConcurrency ? String(nav.hardwareConcurrency) : '',
+    touchPoints: nav.maxTouchPoints ? String(nav.maxTouchPoints) : '0',
+    tgPlatform: tgApp ? tgApp.platform || '' : '',
+    tgVersion: tgApp ? tgApp.version || '' : ''
+  };
+}
+
+async function logMiniAppDevice() {
+  try {
+    const data = await AccessService.logDevice(await collectDeviceInfo());
+    if (data && data.user) accessState.user = data.user;
+  } catch (err) {
+    console.warn('Qurilma logi yozilmadi:', err.message);
+  }
+}
+
 function hasTestAccess() {
-  return true;
+  return !!(accessState.isAdmin || (accessState.user && accessState.user.status === 'approved'));
 }
 
 function fillProfileForm(user) {
@@ -2453,18 +2622,24 @@ async function refreshAccessState(options = {}) {
     renderAccessGate('new');
   }
   try {
+    await hydrateQuestions();
     const data = await AccessService.getMe();
     accessState.user = data.user || null;
     accessState.telegramUser = data.telegramUser || getTelegramUser();
     accessState.isAdmin = !!data.isAdmin;
     accessState.canUseTests = !!(accessState.user && accessState.user.status === 'approved');
     accessState.error = '';
+    await logMiniAppDevice();
     renderAccessGate();
     if (options.initial) {
-      if (accessState.isAdmin) {
+      const view = requestedInitialView();
+      if (accessState.isAdmin && view === 'admin') {
         switchView('admin');
         await renderAdminPanel();
       } else if (accessState.canUseTests) {
+        switchView('intro');
+        $('#headerStatus').textContent = QUESTIONS_RAW.length + ' savol';
+      } else if (accessState.isAdmin) {
         switchView('intro');
         $('#headerStatus').textContent = QUESTIONS_RAW.length + ' savol';
       } else {
@@ -2515,6 +2690,14 @@ async function renderAdminPanel() {
     return;
   }
   $('#headerStatus').textContent = 'Admin';
+  const isQuestions = accessState.adminTab === 'questions';
+  $('#adminFilters').style.display = isQuestions ? 'none' : 'flex';
+  $('#adminUserList').style.display = isQuestions ? 'none' : 'grid';
+  $('#adminQuestionPanel').style.display = isQuestions ? 'block' : 'none';
+  if (isQuestions) {
+    await renderAdminQuestions();
+    return;
+  }
   const listEl = $('#adminUserList');
   listEl.innerHTML = '<div class="empty-state">Foydalanuvchilar yuklanmoqda.</div>';
   try {
@@ -2546,6 +2729,16 @@ function renderAdminUserList() {
     const canBlock = user.status !== 'blocked';
     const approveLabel = user.status === 'blocked' ? 'Qayta tiklash' : 'Ruxsat berish';
     const blockLabel = user.status === 'approved' ? 'Cheklash' : 'Bekor qilish';
+    const devices = Array.isArray(user.devices) ? user.devices : [];
+    const visits = Array.isArray(user.deviceVisits) ? user.deviceVisits : [];
+    const deviceHtml = devices.length ? devices.slice(0, 4).map(device => `
+      <div class="device-row">
+        <strong>${escapeHtml(device.platform || device.tgPlatform || 'Qurilma')}</strong>
+        · ${escapeHtml(device.count)} marta · IP: ${escapeHtml((device.ips || []).join(', ') || '-')}<br>
+        Birinchi: ${escapeHtml(formatAccessDate(device.firstSeenAt) || '-')} · Oxirgi: ${escapeHtml(formatAccessDate(device.lastSeenAt) || '-')}<br>
+        ${escapeHtml(device.screen || '-')} · ${escapeHtml(device.timezone || '-')} · ${escapeHtml(device.userAgent || '').slice(0, 120)}
+      </div>
+    `).join('') : '<div class="device-row">Hali qurilma ma\'lumoti yozilmagan.</div>';
     return `
       <div class="user-card" data-user-id="${escapeHtml(user.id)}">
         <div class="user-card-top">
@@ -2562,13 +2755,161 @@ function renderAdminUserList() {
         <div class="user-actions">
           ${canApprove ? `<button class="action-btn approve" data-action="approved">${approveLabel}</button>` : ''}
           ${canBlock ? `<button class="action-btn block" data-action="blocked">${blockLabel}</button>` : ''}
+          <button class="action-btn" data-user-action="edit">Tahrirlash</button>
+          <button class="action-btn block" data-user-action="delete">O'chirish</button>
+        </div>
+        <div class="device-panel">
+          <div class="user-meta"><strong>Qurilmalar:</strong> ${devices.length} ta · Jami kirish: ${visits.length} ta</div>
+          ${deviceHtml}
         </div>
       </div>
     `;
   }).join('');
 }
 
+async function renderAdminQuestions() {
+  const listEl = $('#adminQuestionList');
+  listEl.innerHTML = '<div class="empty-state">Savollar yuklanmoqda.</div>';
+  try {
+    const data = await AccessService.listQuestions();
+    accessState.adminQuestions = data.questions || [];
+    renderAdminQuestionList();
+  } catch (err) {
+    listEl.innerHTML = `<div class="empty-state">${escapeHtml(err.message || "Savollarni yuklab bo'lmadi.")}</div>`;
+  }
+}
+
+function questionFormValue() {
+  return {
+    id: ($('#questionIdInput').value || '').trim(),
+    subject: $('#questionSubjectInput').value,
+    q: ($('#questionTextInput').value || '').trim(),
+    a: [0, 1, 2, 3].map(i => ($('#answer' + i + 'Input').value || '').trim())
+  };
+}
+
+function resetQuestionForm() {
+  $('#questionIdInput').value = '';
+  $('#questionSubjectInput').value = 'matematik_analiz';
+  $('#questionTextInput').value = '';
+  [0, 1, 2, 3].forEach(i => { $('#answer' + i + 'Input').value = ''; });
+  $('#saveQuestionBtn').textContent = 'Saqlash';
+}
+
+function fillQuestionForm(question) {
+  $('#questionIdInput').value = question.id || '';
+  $('#questionSubjectInput').value = question.subject || 'matematik_analiz';
+  $('#questionTextInput').value = question.q || '';
+  [0, 1, 2, 3].forEach(i => { $('#answer' + i + 'Input').value = question.a && question.a[i] ? question.a[i] : ''; });
+  $('#saveQuestionBtn').textContent = 'Yangilash';
+  $('#questionTextInput').focus();
+}
+
+function renderAdminQuestionList() {
+  const listEl = $('#adminQuestionList');
+  const query = accessState.questionQuery.toLowerCase();
+  const questions = accessState.adminQuestions.filter(question => {
+    const haystack = [question.subject, question.q, ...(question.a || [])].join(' ').toLowerCase();
+    return !query || haystack.includes(query);
+  });
+  $('#adminQuestionCount').textContent = `${questions.length} / ${accessState.adminQuestions.length} savol`;
+  if (questions.length === 0) {
+    listEl.innerHTML = '<div class="empty-state">Savol topilmadi.</div>';
+    return;
+  }
+  listEl.innerHTML = questions.map(question => `
+    <div class="user-card" data-question-id="${escapeHtml(question.id)}">
+      <div class="user-card-top">
+        <div>
+          <span class="status-pill approved">${escapeHtml(SUBJECT_NAMES[question.subject] || question.subject)}</span>
+          <div class="question-text-preview">${escapeHtml(question.q)}</div>
+          <div class="user-meta">To'g'ri javob: ${escapeHtml(question.a && question.a[0] ? question.a[0] : '-')}</div>
+        </div>
+      </div>
+      <div class="user-actions">
+        <button class="action-btn approve" data-question-action="edit">Tahrirlash</button>
+        <button class="action-btn block" data-question-action="delete">O'chirish</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function handleQuestionSubmit(event) {
+  event.preventDefault();
+  const question = questionFormValue();
+  if (!question.q || question.a.some(answer => !answer)) {
+    alert("Savol matni va 4 ta javob variantini to'ldiring.");
+    return;
+  }
+  $('#saveQuestionBtn').disabled = true;
+  try {
+    await AccessService.saveQuestion(question);
+    resetQuestionForm();
+    await hydrateQuestions();
+    await renderAdminQuestions();
+  } catch (err) {
+    alert(err.message || "Savolni saqlab bo'lmadi.");
+  } finally {
+    $('#saveQuestionBtn').disabled = false;
+  }
+}
+
+async function handleQuestionAction(event) {
+  const btn = event.target.closest('[data-question-action]');
+  if (!btn) return;
+  const card = btn.closest('[data-question-id]');
+  const questionId = card ? card.dataset.questionId : '';
+  const question = accessState.adminQuestions.find(item => item.id === questionId);
+  if (!question) return;
+  if (btn.dataset.questionAction === 'edit') {
+    fillQuestionForm(question);
+    return;
+  }
+  if (!confirm("Bu savol o'chirilsinmi?")) return;
+  btn.disabled = true;
+  try {
+    await AccessService.deleteQuestion(questionId);
+    await hydrateQuestions();
+    await renderAdminQuestions();
+  } catch (err) {
+    alert(err.message || "Savolni o'chirib bo'lmadi.");
+    btn.disabled = false;
+  }
+}
+
 async function handleAdminAction(event) {
+  const userBtn = event.target.closest('[data-user-action]');
+  if (userBtn) {
+    const card = userBtn.closest('[data-user-id]');
+    const userId = card ? card.dataset.userId : '';
+    const user = accessState.adminUsers.find(item => item.id === userId);
+    if (!user) return;
+    if (userBtn.dataset.userAction === 'edit') {
+      const fullName = prompt('Ism familiya', user.fullName || '');
+      if (fullName === null) return;
+      const phone = prompt('Telefon raqami', user.phone || '');
+      if (phone === null) return;
+      userBtn.disabled = true;
+      try {
+        await AccessService.updateUser(userId, { fullName, phone });
+        await renderAdminPanel();
+      } catch (err) {
+        alert(err.message || "Foydalanuvchini tahrirlab bo'lmadi.");
+        userBtn.disabled = false;
+      }
+      return;
+    }
+    if (!confirm("Bu foydalanuvchi bazadan o'chirilsinmi?")) return;
+    userBtn.disabled = true;
+    try {
+      await AccessService.deleteUser(userId);
+      await renderAdminPanel();
+    } catch (err) {
+      alert(err.message || "Foydalanuvchini o'chirib bo'lmadi.");
+      userBtn.disabled = false;
+    }
+    return;
+  }
   const btn = event.target.closest('[data-action]');
   if (!btn) return;
   const card = btn.closest('[data-user-id]');
@@ -2596,6 +2937,21 @@ function initAccessGate() {
   $('#adminOpenTestsBtn').addEventListener('click', () => switchView('intro'));
   $('#adminRefreshBtn').addEventListener('click', renderAdminPanel);
   $('#adminUserList').addEventListener('click', handleAdminAction);
+  $('#questionForm').addEventListener('submit', handleQuestionSubmit);
+  $('#resetQuestionBtn').addEventListener('click', resetQuestionForm);
+  $('#adminQuestionList').addEventListener('click', handleQuestionAction);
+  $('#questionSearchInput').addEventListener('input', event => {
+    accessState.questionQuery = event.target.value || '';
+    renderAdminQuestionList();
+  });
+  $$('#adminTabs .filter-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      $$('#adminTabs .filter-btn').forEach(item => item.classList.remove('active'));
+      btn.classList.add('active');
+      accessState.adminTab = btn.dataset.adminTab;
+      await renderAdminPanel();
+    });
+  });
   $$('#adminFilters .filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       $$('#adminFilters .filter-btn').forEach(item => item.classList.remove('active'));
@@ -2775,6 +3131,7 @@ function startQuiz(onlyWrong) {
     renderAccessGate();
     return;
   }
+  logMiniAppDevice();
   if (onlyWrong) {
     const wrongQs = [];
     state.questions.forEach((q, i) => {
