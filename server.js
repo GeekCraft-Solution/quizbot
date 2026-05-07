@@ -3,7 +3,13 @@ const fs = require('fs/promises');
 const fsSync = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { ProxyAgent, setGlobalDispatcher } = require('undici');
+let ProxyAgent = null;
+let setGlobalDispatcher = null;
+try {
+  ({ ProxyAgent, setGlobalDispatcher } = require('undici'));
+} catch (err) {
+  // Proxy ishlatilmasa undici shart emas; Node 18+ global fetch bilan ishlaydi.
+}
 
 loadEnv();
 
@@ -17,7 +23,8 @@ const HISTORY_CHANNEL_ID = process.env.HISTORY_CHANNEL_ID || '';
 const ADMIN_BUTTONS = {
   users: "Barcha userlar ro'yxati",
   planned: 'Rejalashtirilgan ruxsatlar',
-  app: 'Telegram mini appni ochish'
+  app: 'Telegram mini appni ochish',
+  adminPanel: 'Admin panelni ochish'
 };
 const adminModes = new Map();
 
@@ -39,7 +46,7 @@ function loadEnv() {
 async function ensureDb() {
   await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
   if (!fsSync.existsSync(DB_PATH)) {
-    await fs.writeFile(DB_PATH, JSON.stringify({ users: [], plannedPermissions: [] }, null, 2));
+    await fs.writeFile(DB_PATH, JSON.stringify({ users: [], plannedPermissions: [], questions: await loadDefaultQuestions() }, null, 2));
   }
 }
 
@@ -50,9 +57,10 @@ async function readDb() {
     const db = JSON.parse(raw);
     if (!Array.isArray(db.users)) db.users = [];
     if (!Array.isArray(db.plannedPermissions)) db.plannedPermissions = [];
+    if (!Array.isArray(db.questions) || db.questions.length === 0) db.questions = await loadDefaultQuestions();
     return db;
   } catch (err) {
-    return { users: [], plannedPermissions: [] };
+    return { users: [], plannedPermissions: [], questions: await loadDefaultQuestions() };
   }
 }
 
@@ -67,12 +75,53 @@ function normalizeId(value) {
   return value === undefined || value === null ? '' : String(value);
 }
 
+function makeId(prefix = 'id') {
+  return `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
+}
+
+async function loadDefaultQuestions() {
+  try {
+    const html = await fs.readFile(path.join(__dirname, 'index.html'), 'utf8');
+    const match = html.match(/const\s+QUESTIONS_RAW\s*=\s*(\[[\s\S]*?\]);\s*\n\s*const\s+SUBJECT_NAMES/);
+    if (!match) return [];
+    const rawQuestions = JSON.parse(match[1]);
+    return rawQuestions.map((item, index) => normalizeQuestion({
+      id: `q_${String(index + 1).padStart(4, '0')}`,
+      subject: item.subject,
+      q: item.q,
+      a: item.a,
+      createdAt: '',
+      updatedAt: ''
+    }, index));
+  } catch (err) {
+    console.error(`Default questions load failed: ${err.message}`);
+    return [];
+  }
+}
+
+function normalizeQuestion(input, index = 0) {
+  const answers = Array.isArray(input.a) ? input.a : input.answers;
+  return {
+    id: normalizeId(input.id) || `q_${String(index + 1).padStart(4, '0')}`,
+    subject: String(input.subject || 'matematik_analiz').trim() || 'matematik_analiz',
+    q: String(input.q || input.question || '').trim(),
+    a: Array.isArray(answers) ? answers.slice(0, 4).map(item => String(item || '').trim()) : [],
+    createdAt: input.createdAt || '',
+    updatedAt: input.updatedAt || ''
+  };
+}
+
+function publicQuestion(question) {
+  return normalizeQuestion(question);
+}
+
 function displayName(from, fallback = '') {
   if (!from) return fallback;
   return [from.first_name, from.last_name].filter(Boolean).join(' ').trim() || from.username || fallback;
 }
 
 function publicUser(user) {
+  const devices = buildDeviceSummary(user);
   return {
     id: user.id,
     telegramId: user.telegramId,
@@ -85,8 +134,103 @@ function publicUser(user) {
     requestedAt: user.requestedAt || '',
     approvedAt: user.approvedAt || '',
     blockedAt: user.blockedAt || '',
-    history: Array.isArray(user.history) ? user.history : []
+    history: Array.isArray(user.history) ? user.history : [],
+    devices,
+    deviceVisits: Array.isArray(user.deviceVisits) ? user.deviceVisits.slice(-80).reverse() : []
   };
+}
+
+function getRequestIp(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return forwarded || req.socket.remoteAddress || '';
+}
+
+function trimValue(value, max = 220) {
+  return String(value || '').slice(0, max);
+}
+
+function sanitizeDeviceInfo(input) {
+  const raw = input && typeof input === 'object' ? input : {};
+  return {
+    fingerprint: trimValue(raw.fingerprint, 80),
+    platform: trimValue(raw.platform, 80),
+    userAgent: trimValue(raw.userAgent, 260),
+    language: trimValue(raw.language, 40),
+    timezone: trimValue(raw.timezone, 80),
+    screen: trimValue(raw.screen, 40),
+    viewport: trimValue(raw.viewport, 40),
+    colorDepth: trimValue(raw.colorDepth, 20),
+    deviceMemory: trimValue(raw.deviceMemory, 20),
+    hardwareConcurrency: trimValue(raw.hardwareConcurrency, 20),
+    touchPoints: trimValue(raw.touchPoints, 20),
+    tgPlatform: trimValue(raw.tgPlatform, 60),
+    tgVersion: trimValue(raw.tgVersion, 40)
+  };
+}
+
+function deviceKeyFromVisit(visit) {
+  return visit.fingerprint || crypto.createHash('sha256')
+    .update([visit.ip, visit.userAgent, visit.platform, visit.screen, visit.timezone].join('|'))
+    .digest('hex')
+    .slice(0, 24);
+}
+
+function buildDeviceSummary(user) {
+  const visits = Array.isArray(user.deviceVisits) ? user.deviceVisits : [];
+  const map = new Map();
+  for (const visit of visits) {
+    const key = visit.deviceKey || deviceKeyFromVisit(visit);
+    const item = map.get(key) || {
+      deviceKey: key,
+      count: 0,
+      firstSeenAt: visit.at,
+      lastSeenAt: visit.at,
+      ips: [],
+      userAgent: visit.userAgent || '',
+      platform: visit.platform || '',
+      screen: visit.screen || '',
+      timezone: visit.timezone || '',
+      language: visit.language || '',
+      tgPlatform: visit.tgPlatform || ''
+    };
+    item.count += 1;
+    if (Date.parse(visit.at || 0) < Date.parse(item.firstSeenAt || visit.at || 0)) item.firstSeenAt = visit.at;
+    if (Date.parse(visit.at || 0) > Date.parse(item.lastSeenAt || visit.at || 0)) item.lastSeenAt = visit.at;
+    if (visit.ip && !item.ips.includes(visit.ip)) item.ips.push(visit.ip);
+    map.set(key, item);
+  }
+  return [...map.values()].sort((a, b) => Date.parse(b.lastSeenAt || 0) - Date.parse(a.lastSeenAt || 0));
+}
+
+async function recordDeviceVisit(userId, req, deviceInfo = {}) {
+  const db = await readDb();
+  const user = db.users.find(item => item.id === normalizeId(userId));
+  if (!user) throw new Error('Foydalanuvchi topilmadi');
+  const clean = sanitizeDeviceInfo(deviceInfo);
+  const visit = {
+    at: new Date().toISOString(),
+    ip: getRequestIp(req),
+    userAgent: clean.userAgent || trimValue(req.headers['user-agent'], 260),
+    fingerprint: clean.fingerprint,
+    platform: clean.platform,
+    language: clean.language,
+    timezone: clean.timezone,
+    screen: clean.screen,
+    viewport: clean.viewport,
+    colorDepth: clean.colorDepth,
+    deviceMemory: clean.deviceMemory,
+    hardwareConcurrency: clean.hardwareConcurrency,
+    touchPoints: clean.touchPoints,
+    tgPlatform: clean.tgPlatform,
+    tgVersion: clean.tgVersion
+  };
+  visit.deviceKey = deviceKeyFromVisit(visit);
+  if (!Array.isArray(user.deviceVisits)) user.deviceVisits = [];
+  user.deviceVisits.push(visit);
+  if (user.deviceVisits.length > 300) user.deviceVisits = user.deviceVisits.slice(-300);
+  user.updatedAt = visit.at;
+  await writeDb(db);
+  return user;
 }
 
 function historyActor(from) {
@@ -103,6 +247,7 @@ function actionLabel(action) {
   if (action === 'approved') return 'Ruxsat berildi';
   if (action === 'blocked') return 'Foydalanish cheklandi';
   if (action === 'restored') return 'Qayta tiklandi';
+  if (action === 'profile_updated') return 'Profil tahrirlandi';
   if (action === 'auto_approved_planned') return 'Rejalashtirilgan ruxsat bo\'yicha avtomatik ruxsat berildi';
   if (action === 'planned_permission_added') return 'Rejalashtirilgan ruxsat qo\'shildi';
   return action || 'Holat o\'zgardi';
@@ -433,6 +578,20 @@ async function handleApi(req, res, url) {
       return;
     }
 
+    if (req.method === 'GET' && url.pathname === '/api/questions') {
+      const db = await readDb();
+      sendJson(res, 200, { questions: db.questions.map(publicQuestion) });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/device-log') {
+      const body = await readJson(req);
+      const user = await upsertUserFromTelegram(telegramUser);
+      const updated = await recordDeviceVisit(user.id, req, body.device || body);
+      sendJson(res, 200, { user: publicUser(updated) });
+      return;
+    }
+
     if (req.method === 'POST' && url.pathname === '/api/profile') {
       const body = await readJson(req);
       const user = await upsertUserFromTelegram(telegramUser, {
@@ -465,6 +624,125 @@ async function handleApi(req, res, url) {
         .map(publicUser)
         .sort((a, b) => Date.parse(b.requestedAt || b.updatedAt || b.createdAt || 0) - Date.parse(a.requestedAt || a.updatedAt || a.createdAt || 0));
       sendJson(res, 200, { users });
+      return;
+    }
+
+    const userMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
+    if (userMatch && req.method === 'PUT') {
+      if (!isAdmin) {
+        sendJson(res, 403, { error: 'Admin huquqi kerak' });
+        return;
+      }
+      const body = await readJson(req);
+      const db = await readDb();
+      const user = db.users.find(item => item.id === decodeURIComponent(userMatch[1]));
+      if (!user) {
+        sendJson(res, 404, { error: 'Foydalanuvchi topilmadi' });
+        return;
+      }
+      if (body.fullName !== undefined) user.fullName = String(body.fullName || '').trim();
+      if (body.phone !== undefined) user.phone = String(body.phone || '').trim();
+      if (body.username !== undefined) user.username = String(body.username || '').trim();
+      user.updatedAt = new Date().toISOString();
+      appendHistory(user, 'profile_updated', historyActor(telegramUser));
+      await writeDb(db);
+      sendJson(res, 200, { user: publicUser(user) });
+      return;
+    }
+
+    if (userMatch && req.method === 'DELETE') {
+      if (!isAdmin) {
+        sendJson(res, 403, { error: 'Admin huquqi kerak' });
+        return;
+      }
+      const db = await readDb();
+      const idx = db.users.findIndex(item => item.id === decodeURIComponent(userMatch[1]));
+      if (idx === -1) {
+        sendJson(res, 404, { error: 'Foydalanuvchi topilmadi' });
+        return;
+      }
+      const [user] = db.users.splice(idx, 1);
+      await writeDb(db);
+      sendJson(res, 200, { user: publicUser(user) });
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/admin/questions') {
+      if (!isAdmin) {
+        sendJson(res, 403, { error: 'Admin huquqi kerak' });
+        return;
+      }
+      const db = await readDb();
+      sendJson(res, 200, { questions: db.questions.map(publicQuestion) });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/admin/questions') {
+      if (!isAdmin) {
+        sendJson(res, 403, { error: 'Admin huquqi kerak' });
+        return;
+      }
+      const body = await readJson(req);
+      const db = await readDb();
+      const now = new Date().toISOString();
+      const question = normalizeQuestion(Object.assign({}, body, {
+        id: makeId('q'),
+        createdAt: now,
+        updatedAt: now
+      }));
+      if (!question.q || question.a.length !== 4 || question.a.some(answer => !answer)) {
+        sendJson(res, 400, { error: "Savol matni va 4 ta javob varianti to'ldirilishi kerak" });
+        return;
+      }
+      db.questions.push(question);
+      await writeDb(db);
+      sendJson(res, 201, { question: publicQuestion(question) });
+      return;
+    }
+
+    const questionMatch = url.pathname.match(/^\/api\/admin\/questions\/([^/]+)$/);
+    if (questionMatch && req.method === 'PUT') {
+      if (!isAdmin) {
+        sendJson(res, 403, { error: 'Admin huquqi kerak' });
+        return;
+      }
+      const body = await readJson(req);
+      const db = await readDb();
+      const id = decodeURIComponent(questionMatch[1]);
+      const idx = db.questions.findIndex(item => item.id === id);
+      if (idx === -1) {
+        sendJson(res, 404, { error: 'Savol topilmadi' });
+        return;
+      }
+      const updated = normalizeQuestion(Object.assign({}, db.questions[idx], body, {
+        id,
+        updatedAt: new Date().toISOString()
+      }));
+      if (!updated.q || updated.a.length !== 4 || updated.a.some(answer => !answer)) {
+        sendJson(res, 400, { error: "Savol matni va 4 ta javob varianti to'ldirilishi kerak" });
+        return;
+      }
+      db.questions[idx] = updated;
+      await writeDb(db);
+      sendJson(res, 200, { question: publicQuestion(updated) });
+      return;
+    }
+
+    if (questionMatch && req.method === 'DELETE') {
+      if (!isAdmin) {
+        sendJson(res, 403, { error: 'Admin huquqi kerak' });
+        return;
+      }
+      const db = await readDb();
+      const id = decodeURIComponent(questionMatch[1]);
+      const idx = db.questions.findIndex(item => item.id === id);
+      if (idx === -1) {
+        sendJson(res, 404, { error: 'Savol topilmadi' });
+        return;
+      }
+      const [question] = db.questions.splice(idx, 1);
+      await writeDb(db);
+      sendJson(res, 200, { question: publicQuestion(question) });
       return;
     }
 
@@ -505,8 +783,10 @@ async function handleHttp(req, res) {
   sendText(res, 404, 'Not found');
 }
 
-if (process.env.PROXY_URL) {
+if (process.env.PROXY_URL && ProxyAgent && setGlobalDispatcher) {
   setGlobalDispatcher(new ProxyAgent(process.env.PROXY_URL));
+} else if (process.env.PROXY_URL) {
+  console.warn('PROXY_URL sozlangan, lekin undici paketi topilmadi. Proxy ishlatilmaydi.');
 }
 
 async function botApi(method, payload) {
@@ -580,12 +860,21 @@ function miniAppKeyboard() {
   };
 }
 
+function webAppUrlWith(params) {
+  const url = new URL(WEBAPP_URL);
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+  return url.toString();
+}
+
 function adminMainKeyboard() {
   return {
     keyboard: [
       [{ text: ADMIN_BUTTONS.users }],
       [{ text: ADMIN_BUTTONS.planned }],
-      [{ text: ADMIN_BUTTONS.app, web_app: { url: WEBAPP_URL } }]
+      [{ text: ADMIN_BUTTONS.app, web_app: { url: webAppUrlWith({ view: 'tests' }) } }],
+      [{ text: ADMIN_BUTTONS.adminPanel, web_app: { url: webAppUrlWith({ view: 'admin' }) } }]
     ],
     resize_keyboard: true
   };
@@ -922,6 +1211,10 @@ async function handleUpdate(update) {
 }
 
 async function runBotPolling() {
+  if (process.env.DISABLE_BOT_POLLING === '1') {
+    console.warn('Bot polling o\'chiq. Faqat HTTP server ishlaydi.');
+    return;
+  }
   if (!BOT_TOKEN) {
     console.warn('BOT_TOKEN berilmagan. HTTP server ishlaydi, bot polling o\'chiq.');
     return;
